@@ -19,6 +19,9 @@ from windtunnel import contract as C
 class DummySurrogate:
     """numpy version, same interface as surrogate.load_surrogate()."""
 
+    is_dummy = True
+    path = None
+
     def predict_batch(self, inputs):
         inputs = np.asarray(inputs, np.float32)
         fluid = 1.0 - inputs[:, C.IN_MASK]
