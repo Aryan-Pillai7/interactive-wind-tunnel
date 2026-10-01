@@ -219,7 +219,6 @@ __marimo__/
 
 # --- interactive-wind-tunnel ---
 # Local-only notes and settings
-CLAUDE.md
 .claude/settings.local.json
 
 # Data, checkpoints, results (live under DATA_DIR, but guard against strays in the repo)
