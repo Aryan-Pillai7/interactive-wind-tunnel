@@ -1,0 +1,82 @@
+# Repo is bind-mounted at /app; DATA_DIR (from .env) at /data.
+# Daily use:
+#   docker compose build                       # base image only
+#   docker compose run --rm test
+#   docker compose run --rm gen --n 50 --workers 2 --seed 0
+#   docker compose run --rm eval
+#   docker compose up app                      # http://localhost:8501
+#   docker compose run --rm shell
+# Abhay only:
+#   docker compose --profile train build
+#   docker compose run --rm train ...
+#   docker compose run --rm export ...
+
+x-common: &common
+  working_dir: /app
+  environment:
+    DATA_DIR: /data
+  volumes:
+    - type: bind
+      source: .
+      target: /app
+    - type: bind
+      source: ${DATA_DIR:?set DATA_DIR in .env}
+      target: /data
+
+x-base: &base
+  <<: *common
+  image: windtunnel-base:latest
+  build:
+    context: .
+    target: base
+
+x-train: &train
+  <<: *common
+  image: windtunnel-train:latest
+  build:
+    context: .
+    target: train
+    args:
+      TORCH_INDEX_URL: ${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+  profiles: ["train"]
+  shm_size: "2gb"
+  # For CUDA, also uncomment:
+  # gpus: all
+
+services:
+  app:
+    <<: *base
+    command: ["streamlit", "run", "app/app.py", "--server.address=0.0.0.0",
+              "--server.port=8501", "--server.headless=true"]
+    ports:
+      - "8501:8501"
+
+  shell:
+    <<: *base
+    profiles: ["tools"]
+    command: ["bash"]
+    stdin_open: true
+    tty: true
+
+  gen:
+    <<: *base
+    profiles: ["tools"]
+    entrypoint: ["python", "scripts/generate.py"]
+
+  eval:
+    <<: *base
+    profiles: ["tools"]
+    entrypoint: ["python", "scripts/evaluate.py"]
+
+  test:
+    <<: *base
+    profiles: ["tools"]
+    entrypoint: ["python", "-m", "pytest", "-q", "tests"]
+
+  train:
+    <<: *train
+    entrypoint: ["python", "scripts/train.py"]
+
+  export:
+    <<: *train
+    entrypoint: ["python", "scripts/export_onnx.py"]

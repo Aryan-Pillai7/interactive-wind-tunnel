@@ -1,0 +1,3 @@
+# Installed on top of requirements-base.txt in the train image (Abhay only).
+# torch itself is installed in the Dockerfile from TORCH_INDEX_URL.
+onnx==1.18.0
