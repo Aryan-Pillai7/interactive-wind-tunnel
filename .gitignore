@@ -216,3 +216,23 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- interactive-wind-tunnel ---
+# Local-only notes and settings
+CLAUDE.md
+.claude/settings.local.json
+
+# Data, checkpoints, results (live under DATA_DIR, but guard against strays in the repo)
+data/
+checkpoints/
+results/
+runs/
+*.npz
+*.pt
+*.pth
+*.ckpt
+
+# Only the exported model and its card are committed from models/
+models/*
+!models/model.onnx
+!models/model_card.json
