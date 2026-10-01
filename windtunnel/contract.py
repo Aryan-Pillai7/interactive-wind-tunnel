@@ -48,10 +48,12 @@ RE_MAX = 40.0
 TAU_MIN = 0.51  # samples with tau = 3 * nu + 0.5 below this are rejected
 
 # Steady-state criterion: relative change of u below CONV_TOL over
-# CONV_EVERY steps. MAX_ITERS is the cap; non-converged samples are dropped.
+# CONV_EVERY steps. MAX_ITERS is the cap (v0.1: 2000 for interactivity; the
+# measured median to reach CONV_TOL is ~9400 steps, so most solves stop at
+# the cap; solve() reports the final residual).
 CONV_TOL = 1e-5
-CONV_EVERY = 100
-MAX_ITERS = 40_000  # provisional; to be confirmed when the solver is verified
+CONV_EVERY = 50
+MAX_ITERS = 2_000
 
 # --- Shapes -----------------------------------------------------------------
 # NACA airfoils are deferred until the solver is shown to resolve them cleanly.

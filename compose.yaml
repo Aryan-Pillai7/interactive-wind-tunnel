@@ -15,6 +15,10 @@ x-common: &common
   working_dir: /app
   environment:
     DATA_DIR: /data
+    # Keep numpy's large temporaries on the heap instead of mmap-ing them every
+    # step: about 2x faster LBM under Docker/WSL2.
+    MALLOC_MMAP_THRESHOLD_: "67108864"
+    MALLOC_TRIM_THRESHOLD_: "268435456"
   volumes:
     - type: bind
       source: .
