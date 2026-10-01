@@ -8,9 +8,10 @@ running the solver. From the predicted field the app reports drag and lift
 coefficients, peak stagnation pressure and wake vorticity, and it can run the real solver on demand to
 show **surrogate vs ground truth** side by side.
 
-> **Status: early.** The shared contract, the fake dataset, the U-Net, the training script and the ONNX
-> export are in. The LBM solver, dataset generator, metrics, evaluation and app are still stubs.
-> No trained model has been published yet. See [Project status](#project-status).
+> **Status: v0.1 pipeline.** Solver, geometry, dataset generator, metrics, baselines, evaluation and the
+> app are implemented. A tiny MLP surrogate trained on the **fake** dataset is exported to
+> `models/model.onnx` as an end-to-end pipeline check (PR #4). It will be retrained on Amogh's 50-sample
+> real dataset next. See [Project status](#project-status).
 
 ---
 
@@ -70,26 +71,36 @@ The test and OOD sets are never used for training, tuning or model selection. On
 | Component | File(s) | Owner | Status |
 |---|---|---|---|
 | Shared contract | `windtunnel/contract.py` | Aryan | Done |
+| Geometry (masks, SDF) | `windtunnel/geometry.py` | Aryan | Done |
+| LBM solver | `windtunnel/lbm.py` | Aryan | Done |
+| Dataset assembly + generator | `windtunnel/dataset.py`, `scripts/generate.py` | Aryan | Done |
+| Metrics, baselines, plots | `windtunnel/metrics.py`, `baselines.py`, `viz.py` | Aryan | Done |
+| ONNX loader | `windtunnel/surrogate.py` | Aryan | Done |
+| Evaluation | `scripts/evaluate.py` | Aryan | Done |
+| Streamlit app | `app/app.py` | Aryan | Done |
 | Fake dataset + dummy ONNX model | `scripts/make_fake_dataset.py`, `windtunnel/dummy_model.py` | Aryan | Done |
-| Docker images | `Dockerfile`, `compose.yaml` | Aryan / Abhay | Done |
-| U-Net + export wrapper | `windtunnel/model.py` | Abhay | Done |
-| Training + divergence ablation | `scripts/train.py` | Abhay | Done (verified on fake data) |
-| ONNX export + model card | `scripts/export_onnx.py` | Abhay | Done (verified on fake data) |
-| Model tests | `tests/test_model.py` | Abhay | Done (5 tests) |
-| Geometry (masks, SDF) | `windtunnel/geometry.py` | Aryan | Stub |
-| LBM solver | `windtunnel/lbm.py` | Aryan | Stub |
-| Dataset generator | `scripts/generate.py` | Aryan | Stub |
-| Metrics | `windtunnel/metrics.py` | Aryan | Stub |
-| Baselines | `windtunnel/baselines.py` | Aryan | Stub |
-| ONNX loader | `windtunnel/surrogate.py` | Aryan | Stub |
-| Plots | `windtunnel/viz.py` | Aryan | Stub |
-| Evaluation | `scripts/evaluate.py` | Aryan | Stub |
-| Streamlit app | `app/app.py` | Aryan | Placeholder page |
-| Trained model | `models/model.onnx`, `models/model_card.json` | Abhay / Amogh | Not yet: waits for real data |
+| **v0.1 tiny MLP** (train + export + card) | `scripts/train_mlp.py`, `windtunnel/model.py` | Abhay | Done on fake data (PR #4) |
+| U-Net + divergence ablation (full plan) | `windtunnel/model.py`, `scripts/train.py`, `scripts/export_onnx.py` | Abhay | Code done, verified on fake data |
+| Tiny real dataset (50 samples) | `DATA_DIR/tiny_dataset.npz` | Amogh | **Waiting** |
+| MLP retrained on real data | `models/model.onnx`, `models/model_card.json` | Abhay | **Waiting** for the tiny dataset |
 
-**Next sync point:** Aryan verifies the solver and generator on a small set, then the full dataset
-(~1500 samples) is generated and the model is trained for real. The step-by-step plan for the model
-side is in [AMOGH.md](AMOGH.md).
+### v0.1 model (current `models/model.onnx`)
+
+| | Fake data (76 train / 10 val) |
+|---|---|
+| Model | MLP 24576 -> 64 -> 64 -> 24576, ReLU, 3,174,528 params |
+| Training | 5 epochs, Adam lr 1e-3, no schedule, MSE on normalised u, v, p; about 1 s on CPU |
+| Best val loss | 0.2386 (normalised MSE) |
+| torch vs ONNX | ~7e-7 max abs diff (limit 1e-3; also under the contract's 1e-4) |
+| Inference | ~0.2 ms per sample, CPU onnxruntime |
+| Size | 12.1 MB |
+
+This is a pipeline check, not a useful surrogate: a 64-unit bottleneck on tens of samples predicts blurry,
+near-average fields. The U-Net path is the fuller plan.
+
+**Next:** Amogh delivers `tiny_dataset.npz` (50 samples), then
+`python scripts/train_mlp.py --data <DATA_DIR>/tiny_dataset.npz` retrains and re-exports (40 train / 10 val).
+The model-side checklist is in [AMOGH.md](AMOGH.md).
 
 ## Quick start
 
@@ -110,12 +121,22 @@ Datasets, checkpoints and results live in `DATA_DIR` (mounted at `/data` in the 
 docker compose build
 docker compose run --rm test                                  # tests
 docker compose run --rm --entrypoint python shell scripts/make_fake_dataset.py   # -> DATA_DIR/fake
-docker compose run --rm gen --n 50 --workers 2 --seed 0       # real data (once the solver lands)
-docker compose run --rm eval                                  # evaluation (once implemented)
+docker compose run --rm gen --n 50 --workers 2 --seed 0       # real data with the LBM solver
+docker compose run --rm eval                                  # test + OOD evaluation
 docker compose up app                                         # http://localhost:8501
 ```
 
 ### Train image: model training and export (torch + onnx)
+
+v0.1 MLP, local Python (no Docker needed; needs torch, onnx, onnxruntime):
+
+```bash
+python scripts/make_fake_dataset.py --out <DATA_DIR>/fake
+python scripts/train_mlp.py --data <DATA_DIR>/fake/dataset.npz --out <DATA_DIR>/fake   # pipeline check
+python scripts/train_mlp.py --data <DATA_DIR>/tiny_dataset.npz                         # real 50 samples
+```
+
+U-Net (full plan), in Docker:
 
 ```bash
 docker compose --profile train build
@@ -171,14 +192,15 @@ windtunnel/
   lbm.py             D2Q9 lattice-Boltzmann solver (ground truth)
   metrics.py         relative L2, divergence, vorticity, drag/lift, stagnation pressure
   baselines.py       mean field, nearest neighbour, potential flow
-  model.py           U-Net + Exported (ONNX contract wrapper)
+  model.py           U-Net, tiny MLP, Exported (ONNX contract wrapper)
   surrogate.py       onnxruntime loader used by the app and evaluation
   viz.py             plotting helpers
   dummy_model.py     reference model with the exact ONNX I/O
 scripts/
   make_fake_dataset.py   small fake dataset with the real schema
   generate.py            full dataset generation with the solver
-  train.py               training + divergence-weight ablation
+  train.py               U-Net training + divergence-weight ablation
+  train_mlp.py           v0.1 tiny MLP: train, export, check, model card
   export_onnx.py         ONNX export, torch-vs-ONNX check, model card
   evaluate.py            test + OOD evaluation, baselines, latency
 app/app.py           Streamlit virtual wind tunnel

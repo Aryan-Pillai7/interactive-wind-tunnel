@@ -4,7 +4,30 @@ You are picking up the model side described in [ABHAY.md](ABHAY.md). Read that f
 the contract and the ownership table there still apply to you. This file says **what is already done,
 what we found, and exactly what is left**.
 
-## 1. Status at a glance
+## 0. Current plan: v0.1 tiny MLP (supersedes the U-Net timeline below for now)
+
+The team switched to a fast v0.1: **Amogh generates a tiny real dataset; Abhay trains a tiny MLP on it.**
+
+**Amogh, your part:**
+- Write `DATA_DIR/tiny_dataset.npz` with **50 samples** using Aryan's generator, for example
+  `docker compose run --rm gen --n 50 --workers <cores> --seed 0 --n-ood 0`, then rename `dataset.npz`
+  to `tiny_dataset.npz`. Keep `norm.json` and `meta.json` next to it. `--n` counts *attempted* samples;
+  check `n_dropped` in `meta.json` and raise `--n` if fewer than 50 survive.
+- Required keys: `inputs` and `targets`, float32 `[50, 3, 64, 128]` (contract layout: sdf, mask, re_norm -> u, v, p).
+- Ping Abhay when it's ready, and share the file (it is not committed; data never goes in the repo).
+
+**Abhay's side (done on fake data, PR #4):** `scripts/train_mlp.py` trains the MLP (3,174,528 params,
+5 epochs, Adam), saves `DATA_DIR/checkpoints/best_model.pt`, exports `models/model.onnx` (normalisation and
+masking baked in, dynamic batch) and checks torch vs ONNX (< 1e-3; we get ~7e-7). Once your data lands:
+
+```bash
+python scripts/train_mlp.py --data <DATA_DIR>/tiny_dataset.npz --split random   # 40 train / 10 val
+```
+
+`--split random` forces the brief's 40/10 split. Without it, the generator's own 80/10/10 split would give
+40/5 (5 samples held back for test). OOD samples (`idx_ood`) are never trained on either way.
+
+## 1. Status at a glance (U-Net plan)
 
 | ABHAY.md task | Status |
 |---|---|
