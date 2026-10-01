@@ -27,6 +27,11 @@ python scripts/train_mlp.py --data <DATA_DIR>/tiny_dataset.npz --split random   
 `--split random` forces the brief's 40/10 split. Without it, the generator's own 80/10/10 split would give
 40/5 (5 samples held back for test). OOD samples (`idx_ood`) are never trained on either way.
 
+**Status (v0.1 done):** Amogh's dataset landed (PR #5, `scripts/make_tiny_dataset.py`, seed 0: 50 converged,
+3 dropped). The MLP was retrained on it with Amogh's split (40 train / 5 val; the 5 test samples were never
+touched, so `--split random` was not used). Val rel. L2: u 0.266, v 0.742, p 0.660. torch vs ONNX 1.9e-6.
+This works end to end but misses the 10% velocity target. Next step: the U-Net plan below on the full dataset.
+
 ## 1. Status at a glance (U-Net plan)
 
 | ABHAY.md task | Status |

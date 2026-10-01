@@ -9,9 +9,9 @@ coefficients, peak stagnation pressure and wake vorticity, and it can run the re
 show **surrogate vs ground truth** side by side.
 
 > **Status: v0.1 pipeline.** Solver, geometry, dataset generator, metrics, baselines, evaluation and the
-> app are implemented. A tiny MLP surrogate trained on the **fake** dataset is exported to
-> `models/model.onnx` as an end-to-end pipeline check (PR #4). It will be retrained on Amogh's 50-sample
-> real dataset next. See [Project status](#project-status).
+> app are implemented. A tiny MLP surrogate trained on Amogh's **50-sample real LBM dataset** is exported
+> to `models/model.onnx`. It works end to end but is not yet accurate (velocity rel. L2 ~27% vs the 10%
+> target). See [Project status](#project-status).
 
 ---
 
@@ -81,26 +81,29 @@ The test and OOD sets are never used for training, tuning or model selection. On
 | Fake dataset + dummy ONNX model | `scripts/make_fake_dataset.py`, `windtunnel/dummy_model.py` | Aryan | Done |
 | **v0.1 tiny MLP** (train + export + card) | `scripts/train_mlp.py`, `windtunnel/model.py` | Abhay | Done on fake data (PR #4) |
 | U-Net + divergence ablation (full plan) | `windtunnel/model.py`, `scripts/train.py`, `scripts/export_onnx.py` | Abhay | Code done, verified on fake data |
-| Tiny real dataset (50 samples) | `DATA_DIR/tiny_dataset.npz` | Amogh | **Waiting** |
-| MLP retrained on real data | `models/model.onnx`, `models/model_card.json` | Abhay | **Waiting** for the tiny dataset |
+| Tiny real dataset (50 samples) | `scripts/make_tiny_dataset.py`, `datasets/tiny_dataset_meta.json` | Amogh | Done (40 / 5 / 5) |
+| MLP retrained on real data | `models/model.onnx`, `models/model_card.json` | Abhay | Done |
 
 ### v0.1 model (current `models/model.onnx`)
 
-| | Fake data (76 train / 10 val) |
-|---|---|
-| Model | MLP 24576 -> 64 -> 64 -> 24576, ReLU, 3,174,528 params |
-| Training | 5 epochs, Adam lr 1e-3, no schedule, MSE on normalised u, v, p; about 1 s on CPU |
-| Best val loss | 0.2386 (normalised MSE) |
-| torch vs ONNX | ~7e-7 max abs diff (limit 1e-3; also under the contract's 1e-4) |
-| Inference | ~0.2 ms per sample, CPU onnxruntime |
-| Size | 12.1 MB |
+| | **Real tiny dataset (shipped)** | Fake data (pipeline check) |
+|---|---|---|
+| Split | 40 train / 5 val (5 test untouched) | 76 train / 10 val |
+| Model | MLP 24576 -> 64 -> 64 -> 24576, ReLU, 3,174,528 params | same |
+| Training | 5 epochs, Adam lr 1e-3, no schedule; 0.3 s on CPU | ~1 s |
+| Best val loss (normalised MSE) | 0.390 (epoch 5) | 0.239 |
+| Val rel. L2 (`metrics.relative_l2`) | u 0.266, v 0.742, p 0.660, vel 0.274 | — |
+| torch vs ONNX max abs diff | 1.9e-6 (limit 1e-3) | ~7e-7 |
+| Inference, CPU onnxruntime | ~0.2 ms per sample | ~0.2 ms |
+| Size | 12.1 MB | 12.1 MB |
 
 This is a pipeline check, not a useful surrogate: a 64-unit bottleneck on tens of samples predicts blurry,
 near-average fields. The U-Net path is the fuller plan.
 
-**Next:** Amogh delivers `tiny_dataset.npz` (50 samples), then
-`python scripts/train_mlp.py --data <DATA_DIR>/tiny_dataset.npz` retrains and re-exports (40 train / 10 val).
-The model-side checklist is in [AMOGH.md](AMOGH.md).
+Reproduce: `python scripts/make_tiny_dataset.py --n 50 --seed 0 --out <DATA_DIR>/tiny`, copy
+`tiny/dataset.npz` to `<DATA_DIR>/tiny_dataset.npz` (with `norm.json` next to it), then
+`python scripts/train_mlp.py --data <DATA_DIR>/tiny_dataset.npz`.
+**Next:** the U-Net on the full ~1500-sample dataset, which is the path to the 10% target. See [AMOGH.md](AMOGH.md).
 
 ## Quick start
 
@@ -133,7 +136,8 @@ v0.1 MLP, local Python (no Docker needed; needs torch, onnx, onnxruntime):
 ```bash
 python scripts/make_fake_dataset.py --out <DATA_DIR>/fake
 python scripts/train_mlp.py --data <DATA_DIR>/fake/dataset.npz --out <DATA_DIR>/fake   # pipeline check
-python scripts/train_mlp.py --data <DATA_DIR>/tiny_dataset.npz                         # real 50 samples
+python scripts/make_tiny_dataset.py --n 50 --seed 0 --out <DATA_DIR>/tiny                # real 50 samples (LBM)
+python scripts/train_mlp.py --data <DATA_DIR>/tiny_dataset.npz                         # copy of tiny/dataset.npz
 ```
 
 U-Net (full plan), in Docker:
