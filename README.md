@@ -8,10 +8,9 @@ running the solver. From the predicted field the app reports drag and lift
 coefficients, peak stagnation pressure and wake vorticity, and it can run the real solver on demand to
 show **surrogate vs ground truth** side by side.
 
-> **Status: v0.1 pipeline.** Solver, geometry, dataset generator, metrics, baselines, evaluation and the
-> app are implemented. A tiny MLP surrogate trained on Amogh's **50-sample real LBM dataset** is exported
-> to `models/model.onnx`. It works end to end but is not yet accurate (velocity rel. L2 ~27% vs the 10%
-> target). See [Project status](#project-status).
+> **Status: v0.1.** The LBM solver, the Streamlit app, a 50-sample real dataset generator and a tiny MLP
+> surrogate (ONNX) are in. The committed MLP was trained on the fake potential-flow data, so its
+> predictions are placeholders until it is retrained on the real tiny dataset. See [Project status](#project-status).
 
 ---
 
@@ -79,31 +78,20 @@ The test and OOD sets are never used for training, tuning or model selection. On
 | Evaluation | `scripts/evaluate.py` | Aryan | Done |
 | Streamlit app | `app/app.py` | Aryan | Done |
 | Fake dataset + dummy ONNX model | `scripts/make_fake_dataset.py`, `windtunnel/dummy_model.py` | Aryan | Done |
-| **v0.1 tiny MLP** (train + export + card) | `scripts/train_mlp.py`, `windtunnel/model.py` | Abhay | Done on fake data (PR #4) |
-| U-Net + divergence ablation (full plan) | `windtunnel/model.py`, `scripts/train.py`, `scripts/export_onnx.py` | Abhay | Code done, verified on fake data |
-| Tiny real dataset (50 samples) | `scripts/make_tiny_dataset.py`, `datasets/tiny_dataset_meta.json` | Amogh | Done (40 / 5 / 5) |
-| MLP retrained on real data | `models/model.onnx`, `models/model_card.json` | Abhay | Done |
-
-### v0.1 model (current `models/model.onnx`)
-
-| | **Real tiny dataset (shipped)** | Fake data (pipeline check) |
-|---|---|---|
-| Split | 40 train / 5 val (5 test untouched) | 76 train / 10 val |
-| Model | MLP 24576 -> 64 -> 64 -> 24576, ReLU, 3,174,528 params | same |
-| Training | 5 epochs, Adam lr 1e-3, no schedule; 0.3 s on CPU | ~1 s |
-| Best val loss (normalised MSE) | 0.390 (epoch 5) | 0.239 |
-| Val rel. L2 (`metrics.relative_l2`) | u 0.266, v 0.742, p 0.660, vel 0.274 | — |
-| torch vs ONNX max abs diff | 1.9e-6 (limit 1e-3) | ~7e-7 |
-| Inference, CPU onnxruntime | ~0.2 ms per sample | ~0.2 ms |
-| Size | 12.1 MB | 12.1 MB |
-
-This is a pipeline check, not a useful surrogate: a 64-unit bottleneck on tens of samples predicts blurry,
-near-average fields. The U-Net path is the fuller plan.
-
-Reproduce: `python scripts/make_tiny_dataset.py --n 50 --seed 0 --out <DATA_DIR>/tiny`, copy
-`tiny/dataset.npz` to `<DATA_DIR>/tiny_dataset.npz` (with `norm.json` next to it), then
-`python scripts/train_mlp.py --data <DATA_DIR>/tiny_dataset.npz`.
-**Next:** the U-Net on the full ~1500-sample dataset, which is the path to the 10% target. See [AMOGH.md](AMOGH.md).
+| Docker images | `Dockerfile`, `compose.yaml` | Aryan / Abhay | Done |
+| U-Net + export wrapper | `windtunnel/model.py` | Abhay | Done |
+| Training + divergence ablation | `scripts/train.py` | Abhay | Done (verified on fake data) |
+| ONNX export + model card | `scripts/export_onnx.py` | Abhay | Done (verified on fake data) |
+| Model tests | `tests/test_model.py` | Abhay | Done (5 tests) |
+| Geometry (masks, SDF) | `windtunnel/geometry.py` | Aryan | Done |
+| LBM solver | `windtunnel/lbm.py` | Aryan | Done (MAX_ITERS 2000 for interactivity) |
+| Tiny dataset generator (v0.1) | `scripts/make_tiny_dataset.py` | Amogh | Done (50 converged, meta in `datasets/`) |
+| Full dataset generator | `scripts/generate.py` | Aryan | Done, parked for v0.1 |
+| Metrics, baselines, plots | `windtunnel/metrics.py`, `baselines.py`, `viz.py` | Aryan | Done |
+| ONNX loader | `windtunnel/surrogate.py` | Aryan | Done |
+| Evaluation | `scripts/evaluate.py` | Aryan | Done, parked for v0.1 |
+| Streamlit app | `app/app.py` | Aryan | Done (LBM solver and neural surrogate modes) |
+| Tiny MLP (v0.1) | `scripts/train_mlp.py`, `models/model.onnx` | Abhay | Done, **but trained on fake data**: retrain on `DATA_DIR/tiny` |
 
 ## Quick start
 
@@ -124,8 +112,8 @@ Datasets, checkpoints and results live in `DATA_DIR` (mounted at `/data` in the 
 docker compose build
 docker compose run --rm test                                  # tests
 docker compose run --rm --entrypoint python shell scripts/make_fake_dataset.py   # -> DATA_DIR/fake
-docker compose run --rm gen --n 50 --workers 2 --seed 0       # real data with the LBM solver
-docker compose run --rm eval                                  # test + OOD evaluation
+docker compose run --rm gen                                   # v0.1 tiny dataset -> DATA_DIR/tiny
+docker compose run --rm eval --allow-dummy                    # evaluation (parked for v0.1)
 docker compose up app                                         # http://localhost:8501
 ```
 
@@ -145,8 +133,8 @@ U-Net (full plan), in Docker:
 ```bash
 docker compose --profile train build
 docker compose run --rm --entrypoint python train scripts/make_fake_dataset.py
-docker compose run --rm train --data /data/fake --epochs 100 --seed 0   # 5-arm divergence sweep
-docker compose run --rm export --data /data/fake                        # models/model.onnx + card
+docker compose run --rm train                       # v0.1 MLP on DATA_DIR/tiny -> models/model.onnx + card
+docker compose run --rm train --data /data/fake/dataset.npz             # same, on the fake data
 docker compose run --rm --entrypoint python train -m pytest -q tests/test_model.py
 ```
 

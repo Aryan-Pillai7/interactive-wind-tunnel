@@ -2,14 +2,13 @@
 # Daily use:
 #   docker compose build                       # base image only
 #   docker compose run --rm test
-#   docker compose run --rm gen --n 50 --workers 2 --seed 0
+#   docker compose run --rm gen                # v0.1 tiny dataset -> DATA_DIR/tiny/
 #   docker compose run --rm eval
 #   docker compose up app                      # http://localhost:8501
 #   docker compose run --rm shell
 # Abhay only:
 #   docker compose --profile train build
-#   docker compose run --rm train ...
-#   docker compose run --rm export ...
+#   docker compose run --rm train              # v0.1 MLP on DATA_DIR/tiny -> models/model.onnx
 
 x-common: &common
   working_dir: /app
@@ -65,7 +64,7 @@ services:
   gen:
     <<: *base
     profiles: ["tools"]
-    entrypoint: ["python", "scripts/generate.py"]
+    entrypoint: ["python", "scripts/make_tiny_dataset.py"]
 
   eval:
     <<: *base
@@ -79,7 +78,7 @@ services:
 
   train:
     <<: *train
-    entrypoint: ["python", "scripts/train.py"]
+    entrypoint: ["python", "scripts/train_mlp.py"]
 
   export:
     <<: *train

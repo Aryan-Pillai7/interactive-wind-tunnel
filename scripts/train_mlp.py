@@ -1,7 +1,7 @@
 """Train the tiny MLP surrogate (v0.1), export it to ONNX and write the model card.
 
 Usage:
-    python scripts/train_mlp.py [--data DATA_DIR/tiny_dataset.npz] [--epochs 5] [--seed 0]
+    python scripts/train_mlp.py [--data DATA_DIR/tiny/dataset.npz] [--epochs 5] [--seed 0]
 
 The npz needs `inputs` and `targets` [N, 3, 64, 128]. If it has idx_train and
 idx_val they are used (--split auto); otherwise, or with --split random, the
@@ -59,7 +59,7 @@ def load(path, seed, split="auto"):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", default=C.data_path("tiny_dataset.npz"))
+    ap.add_argument("--data", default=C.data_path("tiny", C.DATASET_FILE))
     ap.add_argument("--out", default=C.DATA_DIR, help="dir for checkpoints/ and results/")
     ap.add_argument("--epochs", type=int, default=5)
     ap.add_argument("--batch-size", type=int, default=8)
