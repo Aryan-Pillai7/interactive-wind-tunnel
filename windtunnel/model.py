@@ -89,3 +89,18 @@ class Exported(nn.Module):
 if __name__ == "__main__":
     m = build_model()
     print(m.config, f"params={param_count(m):,}")
+
+
+class MLP(nn.Module):
+    """Tiny baseline surrogate: flatten -> 64 -> 64 -> flatten (ReLU), about 3.2M params."""
+
+    def __init__(self, hidden=64):
+        super().__init__()
+        d = C.N_IN * C.NY * C.NX
+        self.config = {"type": "mlp", "hidden": [hidden, hidden]}
+        self.net = nn.Sequential(nn.Flatten(), nn.Linear(d, hidden), nn.ReLU(),
+                                 nn.Linear(hidden, hidden), nn.ReLU(),
+                                 nn.Linear(hidden, C.N_OUT * C.NY * C.NX))
+
+    def forward(self, x):
+        return self.net(x).view(-1, C.N_OUT, C.NY, C.NX)

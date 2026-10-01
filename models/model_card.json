@@ -1,0 +1,35 @@
+{
+ "version": "v0.1",
+ "model": "MLP: flatten 24576 -> 64 -> 64 -> 24576, ReLU",
+ "param_count": 3174528,
+ "best_val_loss": 0.23858825862407684,
+ "best_epoch": 5,
+ "training_seconds": 1.54,
+ "training": {
+  "epochs": 5,
+  "optimizer": "Adam lr 0.001, no schedule",
+  "batch_size": 8,
+  "loss": "MSE on normalised u, v, p (all cells)",
+  "seed": 0,
+  "n_train": 76,
+  "n_val": 10,
+  "normalisation": "norm.json next to the npz",
+  "data": "dataset.npz (FAKE potential-flow data)",
+  "hardware": "Intel i7-12650H (10 cores / 16 threads), CPU only, torch 2.10.0+cpu"
+ },
+ "onnx": {
+  "opset": 17,
+  "input": "inputs",
+  "output": "fields",
+  "dynamic_batch": true,
+  "size_mb": 12.11,
+  "torch_vs_onnx_max_abs_diff_one_sample": 4.76837158203125e-07,
+  "torch_vs_onnx_max_abs_diff_val": 7.152557373046875e-07,
+  "passes_contract_1e-4": true,
+  "inference_ms_per_sample_cpu_onnxruntime": 5.459,
+  "io": "raw inputs -> physical u, v, p, multiplied by (1 - mask)"
+ },
+ "reproduce": [
+  "python scripts/train_mlp.py --data <DATA_DIR>/fake/dataset.npz --epochs 5 --seed 0"
+ ]
+}
