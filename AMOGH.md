@@ -13,7 +13,7 @@ what we found, and exactly what is left**.
 | 3. Full dataset generation | **Blocked**: Aryan's `lbm.py` / `generate.py` are still stubs (sync point 2 not reached). |
 | 4. Divergence ablation | Code done. Full sweep on fake data **not finished** (stopped after the `w = 0` arm). |
 | 5. ONNX export + `model_card.json` | Code done and verified on a 3-epoch smoke run. Real `models/model.onnx` **not produced yet**. |
-| 6. PR into `main` | Open from branch `abhay/unet` (code only, no model file yet). |
+| 6. PR into `main` | Code **merged** (PR #1). Still open: a PR with `models/model.onnx` + `model_card.json`. |
 
 Nothing trained has been committed. `models/` does not exist in the repo yet.
 
@@ -85,7 +85,7 @@ Speed: about 1.3 s/epoch in the CPU Docker image (16 threads) on the fake set.
 ### A. Set up (about 10 min plus the image download)
 
 ```bash
-git fetch origin && git checkout abhay/unet     # or branch off it: amogh/<topic>
+git checkout main && git pull                   # code is merged; then: git checkout -b amogh/<topic>
 cp .env.example .env                            # set DATA_DIR=C:/your/data/folder (forward slashes)
 docker compose --profile train build
 docker compose run --rm --entrypoint python train -c "import torch, onnx; print(torch.__version__, torch.cuda.is_available())"
