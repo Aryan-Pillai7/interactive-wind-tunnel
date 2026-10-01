@@ -70,6 +70,13 @@ The test and OOD sets are never used for training, tuning or model selection. On
 | Component | File(s) | Owner | Status |
 |---|---|---|---|
 | Shared contract | `windtunnel/contract.py` | Aryan | Done |
+| Geometry (masks, SDF) | `windtunnel/geometry.py` | Aryan | Done |
+| LBM solver | `windtunnel/lbm.py` | Aryan | Done |
+| Dataset assembly + generator | `windtunnel/dataset.py`, `scripts/generate.py` | Aryan | Done |
+| Metrics, baselines, plots | `windtunnel/metrics.py`, `baselines.py`, `viz.py` | Aryan | Done |
+| ONNX loader | `windtunnel/surrogate.py` | Aryan | Done |
+| Evaluation | `scripts/evaluate.py` | Aryan | Done |
+| Streamlit app | `app/app.py` | Aryan | Done |
 | Fake dataset + dummy ONNX model | `scripts/make_fake_dataset.py`, `windtunnel/dummy_model.py` | Aryan | Done |
 | Docker images | `Dockerfile`, `compose.yaml` | Aryan / Abhay | Done |
 | U-Net + export wrapper | `windtunnel/model.py` | Abhay | Done |
@@ -111,6 +118,17 @@ docker compose up app                                         # http://localhost
 ```
 
 ### Train image: model training and export (torch + onnx)
+
+v0.1 MLP, local Python (no Docker needed; needs torch, onnx, onnxruntime):
+
+```bash
+python scripts/make_fake_dataset.py --out <DATA_DIR>/fake
+python scripts/train_mlp.py --data <DATA_DIR>/fake/dataset.npz --out <DATA_DIR>/fake   # pipeline check
+python scripts/make_tiny_dataset.py --n 50 --seed 0 --out <DATA_DIR>/tiny                # real 50 samples (LBM)
+python scripts/train_mlp.py --data <DATA_DIR>/tiny_dataset.npz                         # copy of tiny/dataset.npz
+```
+
+U-Net (full plan), in Docker:
 
 ```bash
 docker compose --profile train build
@@ -166,14 +184,15 @@ windtunnel/
   lbm.py             D2Q9 lattice-Boltzmann solver (ground truth)
   metrics.py         relative L2, divergence, vorticity, drag/lift, stagnation pressure
   baselines.py       mean field, nearest neighbour, potential flow
-  model.py           U-Net + Exported (ONNX contract wrapper)
+  model.py           U-Net, tiny MLP, Exported (ONNX contract wrapper)
   surrogate.py       onnxruntime loader used by the app and evaluation
   viz.py             plotting helpers
   dummy_model.py     reference model with the exact ONNX I/O
 scripts/
   make_fake_dataset.py   small fake dataset with the real schema
   generate.py            full dataset generation with the solver
-  train.py               training + divergence-weight ablation
+  train.py               U-Net training + divergence-weight ablation
+  train_mlp.py           v0.1 tiny MLP: train, export, check, model card
   export_onnx.py         ONNX export, torch-vs-ONNX check, model card
   evaluate.py            test + OOD evaluation, baselines, latency
 app/app.py           Streamlit virtual wind tunnel
