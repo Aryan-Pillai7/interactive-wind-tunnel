@@ -4,7 +4,7 @@
  "param_count": 3174528,
  "best_val_loss": 0.23858825862407684,
  "best_epoch": 5,
- "training_seconds": 1.54,
+ "training_seconds": 0.65,
  "training": {
   "epochs": 5,
   "optimizer": "Adam lr 0.001, no schedule",
@@ -26,10 +26,10 @@
   "torch_vs_onnx_max_abs_diff_one_sample": 4.76837158203125e-07,
   "torch_vs_onnx_max_abs_diff_val": 7.152557373046875e-07,
   "passes_contract_1e-4": true,
-  "inference_ms_per_sample_cpu_onnxruntime": 5.459,
+  "inference_ms_per_sample_cpu_onnxruntime": 0.233,
   "io": "raw inputs -> physical u, v, p, multiplied by (1 - mask)"
  },
  "reproduce": [
-  "python scripts/train_mlp.py --data <DATA_DIR>/fake/dataset.npz --epochs 5 --seed 0"
+  "python scripts/train_mlp.py --data <DATA_DIR>/fake/dataset.npz --epochs 5 --seed 0 --split auto"
  ]
 }

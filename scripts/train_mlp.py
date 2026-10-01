@@ -4,8 +4,8 @@ Usage:
     python scripts/train_mlp.py [--data DATA_DIR/tiny_dataset.npz] [--epochs 5] [--seed 0]
 
 The npz needs `inputs` and `targets` [N, 3, 64, 128]. If it has idx_train and
-idx_val they are used; otherwise the samples are split 80/20 with a seeded
-shuffle (40 / 10 for 50 samples). Normalisation stats come from norm.json next
+idx_val they are used (--split auto); otherwise, or with --split random, the
+samples are split 80/20 with a seeded shuffle (40 / 10 for 50 samples). Normalisation stats come from norm.json next
 to the npz if present, else from the train split. Writes
 DATA_DIR/checkpoints/best_model.pt, DATA_DIR/results/train_log_mlp.csv,
 models/model.onnx and models/model_card.json.
@@ -33,14 +33,15 @@ REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 ONNX_TOL = 1e-3  # v0.1 brief; the contract value C.TORCH_ONNX_MAX_ABS_DIFF is also reported
 
 
-def load(path, seed):
+def load(path, seed, split="auto"):
     with np.load(path) as d:
         x, y = d["inputs"].astype(np.float32), d["targets"].astype(np.float32)
-        if "idx_train" in d.files and "idx_val" in d.files:
+        if split == "auto" and "idx_train" in d.files and "idx_val" in d.files:
             tr, va = d["idx_train"], d["idx_val"]
         else:
-            perm = np.random.default_rng(seed).permutation(len(x))
-            n_val = int(round(0.2 * len(x)))
+            pool = np.setdiff1d(np.arange(len(x)), d["idx_ood"] if "idx_ood" in d.files else [])
+            perm = np.random.default_rng(seed).permutation(pool)  # OOD never trained on
+            n_val = int(round(0.2 * len(pool)))
             tr, va = np.sort(perm[n_val:]), np.sort(perm[:n_val])
     norm_path = os.path.join(os.path.dirname(path), C.NORM_FILE)
     if os.path.exists(norm_path):
@@ -64,6 +65,8 @@ def main():
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--split", choices=("auto", "random"), default="auto",
+                    help="auto: use idx_train/idx_val if present; random: seeded 80/20")
     ap.add_argument("--onnx", default=os.path.join(REPO, C.MODEL_PATH))
     ap.add_argument("--card", default=os.path.join(REPO, C.MODEL_CARD_PATH))
     ap.add_argument("--hardware", default=f"{platform.processor()} ({os.cpu_count()} threads)")
@@ -72,7 +75,7 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    x, y, tr, va, stats, norm_source = load(args.data, args.seed)
+    x, y, tr, va, stats, norm_source = load(args.data, args.seed, args.split)
     model = Exported(MLP(), *stats)
     net = model.net
     print(f"MLP params {param_count(net):,}; train {len(tr)} val {len(va)}; data {args.data}")
@@ -174,7 +177,7 @@ def main():
                  "io": "raw inputs -> physical u, v, p, multiplied by (1 - mask)"},
         "reproduce": [f"python scripts/train_mlp.py --data <DATA_DIR>/"
                       f"{os.path.relpath(args.data, C.DATA_DIR).replace(os.sep, '/')} "
-                      f"--epochs {args.epochs} --seed {args.seed}"],
+                      f"--epochs {args.epochs} --seed {args.seed} --split {args.split}"],
     }
     with open(args.card, "w") as f:
         json.dump(card, f, indent=1)
