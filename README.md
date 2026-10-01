@@ -8,9 +8,9 @@ running the solver. From the predicted field the app reports drag and lift
 coefficients, peak stagnation pressure and wake vorticity, and it can run the real solver on demand to
 show **surrogate vs ground truth** side by side.
 
-> **Status: early.** The shared contract, the fake dataset, the U-Net, the training script and the ONNX
-> export are in. The LBM solver, dataset generator, metrics, evaluation and app are still stubs.
-> No trained model has been published yet. See [Project status](#project-status).
+> **Status: v0.1.** The LBM solver, the Streamlit app, a 50-sample real dataset generator and a tiny MLP
+> surrogate (ONNX) are in. The committed MLP was trained on the fake potential-flow data, so its
+> predictions are placeholders until it is retrained on the real tiny dataset. See [Project status](#project-status).
 
 ---
 
@@ -76,20 +76,15 @@ The test and OOD sets are never used for training, tuning or model selection. On
 | Training + divergence ablation | `scripts/train.py` | Abhay | Done (verified on fake data) |
 | ONNX export + model card | `scripts/export_onnx.py` | Abhay | Done (verified on fake data) |
 | Model tests | `tests/test_model.py` | Abhay | Done (5 tests) |
-| Geometry (masks, SDF) | `windtunnel/geometry.py` | Aryan | Stub |
-| LBM solver | `windtunnel/lbm.py` | Aryan | Stub |
-| Dataset generator | `scripts/generate.py` | Aryan | Stub |
-| Metrics | `windtunnel/metrics.py` | Aryan | Stub |
-| Baselines | `windtunnel/baselines.py` | Aryan | Stub |
-| ONNX loader | `windtunnel/surrogate.py` | Aryan | Stub |
-| Plots | `windtunnel/viz.py` | Aryan | Stub |
-| Evaluation | `scripts/evaluate.py` | Aryan | Stub |
-| Streamlit app | `app/app.py` | Aryan | Placeholder page |
-| Trained model | `models/model.onnx`, `models/model_card.json` | Abhay / Amogh | Not yet: waits for real data |
-
-**Next sync point:** Aryan verifies the solver and generator on a small set, then the full dataset
-(~1500 samples) is generated and the model is trained for real. The step-by-step plan for the model
-side is in [AMOGH.md](AMOGH.md).
+| Geometry (masks, SDF) | `windtunnel/geometry.py` | Aryan | Done |
+| LBM solver | `windtunnel/lbm.py` | Aryan | Done (MAX_ITERS 2000 for interactivity) |
+| Tiny dataset generator (v0.1) | `scripts/make_tiny_dataset.py` | Amogh | Done (50 converged, meta in `datasets/`) |
+| Full dataset generator | `scripts/generate.py` | Aryan | Done, parked for v0.1 |
+| Metrics, baselines, plots | `windtunnel/metrics.py`, `baselines.py`, `viz.py` | Aryan | Done |
+| ONNX loader | `windtunnel/surrogate.py` | Aryan | Done |
+| Evaluation | `scripts/evaluate.py` | Aryan | Done, parked for v0.1 |
+| Streamlit app | `app/app.py` | Aryan | Done (LBM solver and neural surrogate modes) |
+| Tiny MLP (v0.1) | `scripts/train_mlp.py`, `models/model.onnx` | Abhay | Done, **but trained on fake data**: retrain on `DATA_DIR/tiny` |
 
 ## Quick start
 
@@ -110,8 +105,8 @@ Datasets, checkpoints and results live in `DATA_DIR` (mounted at `/data` in the 
 docker compose build
 docker compose run --rm test                                  # tests
 docker compose run --rm --entrypoint python shell scripts/make_fake_dataset.py   # -> DATA_DIR/fake
-docker compose run --rm gen --n 50 --workers 2 --seed 0       # real data (once the solver lands)
-docker compose run --rm eval                                  # evaluation (once implemented)
+docker compose run --rm gen                                   # v0.1 tiny dataset -> DATA_DIR/tiny
+docker compose run --rm eval --allow-dummy                    # evaluation (parked for v0.1)
 docker compose up app                                         # http://localhost:8501
 ```
 
@@ -120,8 +115,8 @@ docker compose up app                                         # http://localhost
 ```bash
 docker compose --profile train build
 docker compose run --rm --entrypoint python train scripts/make_fake_dataset.py
-docker compose run --rm train --data /data/fake --epochs 100 --seed 0   # 5-arm divergence sweep
-docker compose run --rm export --data /data/fake                        # models/model.onnx + card
+docker compose run --rm train                       # v0.1 MLP on DATA_DIR/tiny -> models/model.onnx + card
+docker compose run --rm train --data /data/fake/dataset.npz             # same, on the fake data
 docker compose run --rm --entrypoint python train -m pytest -q tests/test_model.py
 ```
 
